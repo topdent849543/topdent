@@ -1,0 +1,193 @@
+name: Build Android APK
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Free up disk space
+        run: |
+          echo "📊 Disk space before cleanup:"
+          df -h /
+
+          echo "🧹 Removing unnecessary files..."
+
+          sudo rm -rf /usr/local/lib/android/sdk/build-tools/30* 2>/dev/null || true
+          sudo rm -rf /usr/local/lib/android/sdk/build-tools/31* 2>/dev/null || true
+          sudo rm -rf /usr/local/lib/android/sdk/build-tools/32* 2>/dev/null || true
+          sudo rm -rf /usr/local/lib/android/sdk/build-tools/33* 2>/dev/null || true
+
+          sudo rm -rf /usr/local/lib/android/sdk/platforms/android-30 2>/dev/null || true
+          sudo rm -rf /usr/local/lib/android/sdk/platforms/android-31 2>/dev/null || true
+          sudo rm -rf /usr/local/lib/android/sdk/platforms/android-32 2>/dev/null || true
+          sudo rm -rf /usr/local/lib/android/sdk/platforms/android-33 2>/dev/null || true
+
+          sudo rm -rf /opt/hostedtoolcache/CodeQL 2>/dev/null || true
+          sudo docker image prune -a --force 2>/dev/null || true
+          sudo docker rmi $(sudo docker images -q) 2>/dev/null || true
+
+          sudo apt-get clean
+          sudo apt-get autoclean
+          sudo apt-get autoremove -y
+
+          sudo rm -rf /usr/share/dotnet 2>/dev/null || true
+          sudo rm -rf /usr/local/share/boost 2>/dev/null || true
+
+          echo "📊 Disk space after cleanup:"
+          df -h /
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'build-tools;34.0.0 platforms;android-34'
+
+      - name: Update npm
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: |
+          echo "📦 Installing dependencies with npm install..."
+          npm install --legacy-peer-deps
+
+      - name: Clean npm cache
+        run: |
+          echo "🧹 Cleaning npm cache..."
+          npm cache clean --force
+          echo "📊 Disk space after npm cleanup:"
+          df -h /
+
+      - name: Fix Expo SDK dependency versions
+        run: npx expo install --fix
+
+      - name: Create .env file
+        run: |
+          echo "EXPO_PUBLIC_SUPABASE_URL=${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}" > .env
+          echo "EXPO_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}" >> .env
+
+      - name: Prebuild Android
+        run: |
+          echo "🔨 Prebuilding Android..."
+          npx expo prebuild --platform android --clean --non-interactive
+        env:
+          NODE_ENV: production
+
+      - name: Check disk space before Gradle build
+        run: |
+          echo "📊 Disk space before Gradle build:"
+          df -h /
+          echo ""
+          echo "📂 Large directories:"
+          du -sh android/app/build/ 2>/dev/null || echo "No build directory yet"
+          du -sh node_modules/ 2>/dev/null || echo "node_modules info"
+
+      - name: Build APK with Gradle
+        run: |
+          echo "🚀 Building APK with Gradle..."
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease \
+            --no-daemon \
+            --stacktrace \
+            --parallel \
+            -Dorg.gradle.caching=true \
+            -Dorg.gradle.workers.max=4
+        env:
+          NODE_ENV: production
+          GRADLE_OPTS: "-Xmx3072m -XX:MaxMetaspaceSize=256m -XX:+UseG1GC"
+
+      - name: Check if APK was created
+        run: |
+          if [ -f "android/app/build/outputs/apk/release/app-release.apk" ]; then
+            echo "✅ APK created successfully!"
+            ls -lh android/app/build/outputs/apk/release/*.apk
+          else
+            echo "❌ APK creation failed!"
+            exit 1
+          fi
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: varlo-app-apk
+          path: |
+            android/app/build/outputs/apk/release/*.apk
+            android/app/build/outputs/apk/debug/*.apk
+          retention-days: 30
+
+      - name: Clean up after build
+        if: always()
+        run: |
+          echo "🧹 Cleaning up workspace..."
+          cd android
+          ./gradlew clean 2>/dev/null || true
+          echo "📊 Final disk space:"
+          df -h /
+
+  build-web:
+    name: Build Web & Verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: |
+          echo "📦 Installing dependencies..."
+          npm install --legacy-peer-deps
+
+      - name: Clean npm cache
+        run: npm cache clean --force
+
+      - name: Fix Expo SDK dependency versions
+        run: npx expo install --fix
+
+      - name: Create .env file
+        run: |
+          echo "EXPO_PUBLIC_SUPABASE_URL=${{ secrets.EXPO_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co' }}" > .env
+          echo "EXPO_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key' }}" >> .env
+
+      - name: Build web app
+        run: |
+          echo "🌐 Building web app..."
+          npx expo export --platform web
+        env:
+          NODE_ENV: production
+
+      - name: Verify build output
+        run: |
+          echo "✅ Verifying build output..."
+          ls -la dist/
+          echo "Web build successful!"
+
+      - name: Upload web build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: varlo-web-build
+          path: dist/
+          retention-days: 7

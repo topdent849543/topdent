@@ -1,0 +1,137 @@
+import { Platform } from 'react-native';
+
+export const colors = {
+  primary: {
+    50: '#f0f9fc',
+    100: '#e1f3f8',
+    200: '#c2e9f3',
+    300: '#8dd9ed',
+    400: '#58c4e0',
+    500: '#34a8d1',
+    600: '#2b8bb3',
+    700: '#206e91',
+    800: '#1a5976',
+    900: '#164762',
+  },
+  neutral: {
+    0: '#ffffff',
+    50: '#f8fafc',
+    100: '#f1f5f9',
+    200: '#e2e8f0',
+    300: '#cbd5e1',
+    400: '#94a3b8',
+    500: '#64748b',
+    600: '#475569',
+    700: '#334155',
+    800: '#1e293b',
+    900: '#0f172a',
+    950: '#020617',
+  },
+  accent: {
+    50: '#f0f9fc',
+    100: '#e0f2fe',
+    200: '#bae6fd',
+    300: '#7dd3fc',
+    400: '#38bdf8',
+    500: '#0ea5e9',
+    600: '#0284c7',
+    700: '#0369a1',
+  },
+  success: {
+    50: '#f0fdf4',
+    100: '#dcfce7',
+    200: '#bbf7d0',
+    500: '#22c55e',
+    600: '#16a34a',
+    700: '#15803d',
+    800: '#166534',
+  },
+  warning: {
+    50: '#fffbeb',
+    100: '#fef3c7',
+    200: '#fde68a',
+    500: '#f59e0b',
+    600: '#d97706',
+    700: '#b45309',
+    800: '#92400e',
+  },
+  error: {
+    50: '#fef2f2',
+    100: '#fee2e2',
+    200: '#fecaca',
+    500: '#ef4444',
+    600: '#dc2626',
+    700: '#b91c1c',
+    800: '#991b1b',
+  },
+  white: '#ffffff',
+  black: '#000000',
+  background: '#f8fafc',
+  surface: '#ffffff',
+  text: '#1e293b',
+  textSecondary: '#475569',
+  textMuted: '#94a3b8',
+  border: '#e2e8f0',
+  inputBg: '#f1f5f9',
+  overlay: 'rgba(15, 23, 42, 0.5)',
+  dental: '#34a8d1',
+  dentalLight: '#c2e9f3',
+  dentalDark: '#206e91',
+  skyBlue: '#0ea5e9',
+};
+
+export const spacing = {
+  xs: 4,
+  sm: 8,
+  md: 16,
+  lg: 24,
+  xl: 32,
+  xxl: 48,
+};
+
+export const radius = {
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 24,
+  full: 9999,
+};
+
+export const typography = {
+  fontFamily: Platform.select({
+    web: 'System',
+    default: undefined,
+  }),
+  h1: { fontSize: 32, fontWeight: '700' as const, lineHeight: 38 },
+  h2: { fontSize: 24, fontWeight: '700' as const, lineHeight: 30 },
+  h3: { fontSize: 20, fontWeight: '600' as const, lineHeight: 26 },
+  h4: { fontSize: 18, fontWeight: '600' as const, lineHeight: 24 },
+  body: { fontSize: 16, fontWeight: '400' as const, lineHeight: 24 },
+  bodySmall: { fontSize: 14, fontWeight: '400' as const, lineHeight: 20 },
+  caption: { fontSize: 12, fontWeight: '400' as const, lineHeight: 16 },
+  button: { fontSize: 16, fontWeight: '600' as const, lineHeight: 22 },
+};
+
+export const shadows = {
+  sm: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  md: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  lg: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+};

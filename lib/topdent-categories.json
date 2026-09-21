@@ -1,0 +1,290 @@
+{
+  "topdent_categories": {
+    "version": "1.0.0",
+    "description": "TopDent Dental Equipment Trading Platform - Categories Configuration",
+    "main_departments": [
+      {
+        "id": "dept-001",
+        "name": "أدوات الكشف والتشخيص",
+        "name_en": "Detection & Diagnosis Tools",
+        "slug": "detection-diagnosis-tools",
+        "description": "مرايا الفم ومستكشفات الأسنان وأدوات قياس الجيب وأجهزة الكشف عن الجير",
+        "icon": "🔍",
+        "sort_order": 1,
+        "is_active": true,
+        "subcategories": [
+          {
+            "id": "subcat-001-001",
+            "name": "مرايا الفم",
+            "name_en": "Mouth Mirrors",
+            "slug": "mouth-mirrors",
+            "description": "مرايا الفم بأحجام وأنواع مختلفة للكشف والفحص"
+          },
+          {
+            "id": "subcat-001-002",
+            "name": "مستكشفات الأسنان",
+            "name_en": "Dental Explorers",
+            "slug": "dental-explorers",
+            "description": "مستكشفات حادة ودقيقة لكشف التسوس والعيوب"
+          },
+          {
+            "id": "subcat-001-003",
+            "name": "أدوات قياس الجيب",
+            "name_en": "Periodontal Probes",
+            "slug": "periodontal-probes",
+            "description": "أدوات قياس الجيب والعمق السني"
+          }
+        ]
+      },
+      {
+        "id": "dept-002",
+        "name": "أجهزة الحفر والقطع",
+        "name_en": "Drilling & Cutting Devices",
+        "slug": "drilling-cutting-devices",
+        "description": "محركات الحفر والمجاميع والبرد والأدوات الدوارة المتخصصة",
+        "icon": "⚙️",
+        "sort_order": 2,
+        "is_active": true,
+        "subcategories": [
+          {
+            "id": "subcat-002-001",
+            "name": "محركات الحفر العالية",
+            "name_en": "High Speed Handpieces",
+            "slug": "high-speed-handpieces",
+            "description": "محركات حفر عالية السرعة للقطع والحفر السريع"
+          },
+          {
+            "id": "subcat-002-002",
+            "name": "محركات الحفر البطيئة",
+            "name_en": "Low Speed Handpieces",
+            "slug": "low-speed-handpieces",
+            "description": "محركات حفر بطيئة للعمليات الدقيقة والتلميع"
+          },
+          {
+            "id": "subcat-002-003",
+            "name": "مجاميع الحفر",
+            "name_en": "Drill Bits",
+            "slug": "drill-bits",
+            "description": "مجاميع حفر متنوعة للأغراض المختلفة"
+          }
+        ]
+      },
+      {
+        "id": "dept-003",
+        "name": "مواد الحشو والتركيب",
+        "name_en": "Filling & Restorative Materials",
+        "slug": "filling-materials",
+        "description": "الحشوات المركبة والاسمنت السني وموارد الختم وحشوات الجذر",
+        "icon": "🦷",
+        "sort_order": 3,
+        "is_active": true,
+        "subcategories": [
+          {
+            "id": "subcat-003-001",
+            "name": "الحشوات المركبة",
+            "name_en": "Composite Resins",
+            "slug": "composite-resins",
+            "description": "حشوات مركبة عالية الجودة بألوان متعددة"
+          },
+          {
+            "id": "subcat-003-002",
+            "name": "الاسمنت السني",
+            "name_en": "Dental Cements",
+            "slug": "dental-cements",
+            "description": "الاسمنت السني المختلفة للتثبيت والحماية"
+          },
+          {
+            "id": "subcat-003-003",
+            "name": "حشوات الجذر",
+            "name_en": "Root Filling Materials",
+            "slug": "root-filling-materials",
+            "description": "مواد حشو الجذور والمراحل"
+          }
+        ]
+      },
+      {
+        "id": "dept-004",
+        "name": "أجهزة التنظيف والكشط",
+        "name_en": "Cleaning & Scaling Devices",
+        "slug": "cleaning-devices",
+        "description": "ماكينات تنظيف الأسنان والشافطات وأدوات الكشط المتقدمة",
+        "icon": "🧹",
+        "sort_order": 4,
+        "is_active": true,
+        "subcategories": [
+          {
+            "id": "subcat-004-001",
+            "name": "أجهزة التنظيف الموجات فوق الصوتية",
+            "name_en": "Ultrasonic Scalers",
+            "slug": "ultrasonic-scalers",
+            "description": "أجهزة تنظيف بالموجات فوق الصوتية"
+          },
+          {
+            "id": "subcat-004-002",
+            "name": "شافطات اللعاب",
+            "name_en": "Saliva Ejectors",
+            "slug": "saliva-ejectors",
+            "description": "شافطات لعاب قوية وفعالة"
+          }
+        ]
+      },
+      {
+        "id": "dept-005",
+        "name": "معدات العيادة الكبيرة",
+        "name_en": "Large Clinic Equipment",
+        "slug": "large-clinic-equipment",
+        "description": "كراسي طب الأسنان وأجهزة الأشعات السينية ونظم التهوية والمعالجة",
+        "icon": "🏥",
+        "sort_order": 5,
+        "is_active": true,
+        "subcategories": [
+          {
+            "id": "subcat-005-001",
+            "name": "كراسي طب الأسنان",
+            "name_en": "Dental Chairs",
+            "slug": "dental-chairs",
+            "description": "كراسي طب الأسنان الحديثة والمريحة"
+          },
+          {
+            "id": "subcat-005-002",
+            "name": "أجهزة الأشعات السينية",
+            "name_en": "X-Ray Equipment",
+            "slug": "xray-equipment",
+            "description": "أجهزة الأشعات السينية الرقمية والتقليدية"
+          },
+          {
+            "id": "subcat-005-003",
+            "name": "نظم المعالجة والتهوية",
+            "name_en": "Treatment Units",
+            "slug": "treatment-units",
+            "description": "وحدات المعالجة الكاملة مع الإضاءة والشفط"
+          }
+        ]
+      },
+      {
+        "id": "dept-006",
+        "name": "مستلزمات الحماية والسلامة",
+        "name_en": "Protective & Safety Supplies",
+        "slug": "protective-safety-supplies",
+        "description": "الكمامات والقفازات والنظارات الطبية وملابس العمل المتخصصة",
+        "icon": "🛡️",
+        "sort_order": 6,
+        "is_active": true,
+        "subcategories": [
+          {
+            "id": "subcat-006-001",
+            "name": "الكمامات الطبية",
+            "name_en": "Medical Masks",
+            "slug": "medical-masks",
+            "description": "كمامات N95 وطبية معتمدة"
+          },
+          {
+            "id": "subcat-006-002",
+            "name": "القفازات الطبية",
+            "name_en": "Medical Gloves",
+            "slug": "medical-gloves",
+            "description": "قفازات لاتكس ونيتريل وخالية من اللاتكس"
+          },
+          {
+            "id": "subcat-006-003",
+            "name": "نظارات وحماية العيون",
+            "name_en": "Eye Protection",
+            "slug": "eye-protection",
+            "description": "نظارات واقية وحماية للعيون"
+          }
+        ]
+      },
+      {
+        "id": "dept-007",
+        "name": "مواد الطب الرميح والجراحي",
+        "name_en": "Endodontic & Surgical Materials",
+        "slug": "endodontic-surgical-materials",
+        "description": "مواد معالجة قنوات الجذر ومواد تقويم الأسنان والجراحة اللطيفة",
+        "icon": "🔬",
+        "sort_order": 7,
+        "is_active": true,
+        "subcategories": [
+          {
+            "id": "subcat-007-001",
+            "name": "مواد معالجة الجذور",
+            "name_en": "Root Canal Materials",
+            "slug": "root-canal-materials",
+            "description": "مواد ومحاليل معالجة قنوات الجذور"
+          },
+          {
+            "id": "subcat-007-002",
+            "name": "مواد تقويم الأسنان",
+            "name_en": "Orthodontic Materials",
+            "slug": "orthodontic-materials",
+            "description": "أسلاك وأقواس ومواد تقويم الأسنان"
+          }
+        ]
+      },
+      {
+        "id": "dept-008",
+        "name": "الأدوات المستعملة والمجددة",
+        "name_en": "Used & Refurbished Equipment",
+        "slug": "used-refurbished-equipment",
+        "description": "أدوات مستعملة بحالة جيدة ومعدات مجددة معتمدة",
+        "icon": "♻️",
+        "sort_order": 8,
+        "is_active": true,
+        "subcategories": [
+          {
+            "id": "subcat-008-001",
+            "name": "أدوات مستعملة",
+            "name_en": "Used Equipment",
+            "slug": "used-equipment",
+            "description": "أدوات مستعملة بحالة جيدة"
+          },
+          {
+            "id": "subcat-008-002",
+            "name": "معدات مجددة",
+            "name_en": "Refurbished Equipment",
+            "slug": "refurbished-equipment",
+            "description": "معدات تم تجديدها وتعقيمها معتمدة"
+          }
+        ]
+      }
+    ],
+    "color_scheme": {
+      "primary": "#34a8d1",
+      "primary_light": "#c2e9f3",
+      "primary_dark": "#206e91",
+      "secondary": "#0ea5e9",
+      "background": "#f8fafc",
+      "surface": "#ffffff",
+      "text": "#1e293b"
+    },
+    "business_types": {
+      "individual": "مشتري فردي",
+      "clinic": "عيادة طبية",
+      "dental_lab": "معمل أسنان",
+      "wholesaler": "تاجر جملة",
+      "manufacturer": "مصنع",
+      "hospital": "مستشفى"
+    },
+    "certifications": [
+      {
+        "code": "FDA",
+        "name": "FDA Certification",
+        "description": "شهادة الغذاء والدواء الأمريكية"
+      },
+      {
+        "code": "ISO",
+        "name": "ISO Certification",
+        "description": "شهادات المنظمة الدولية للمعايير"
+      },
+      {
+        "code": "CE",
+        "name": "CE Marking",
+        "description": "علامة الاتحاد الأوروبي"
+      },
+      {
+        "code": "AQIS",
+        "name": "AQIS Certification",
+        "description": "شهادة الحجر الزراعي الاسترالية"
+      }
+    ]
+  }
+}

@@ -1,0 +1,144 @@
+name: Build Android AAB (Google Play)
+on:
+  workflow_dispatch:
+
+jobs:
+  build-aab:
+    name: Build AAB
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android/sdk/build-tools/30* 2>/dev/null || true
+          sudo rm -rf /usr/local/lib/android/sdk/build-tools/31* 2>/dev/null || true
+          sudo rm -rf /usr/local/lib/android/sdk/build-tools/32* 2>/dev/null || true
+          sudo rm -rf /usr/local/lib/android/sdk/build-tools/33* 2>/dev/null || true
+          sudo rm -rf /usr/local/lib/android/sdk/platforms/android-30 2>/dev/null || true
+          sudo rm -rf /usr/local/lib/android/sdk/platforms/android-31 2>/dev/null || true
+          sudo rm -rf /usr/local/lib/android/sdk/platforms/android-32 2>/dev/null || true
+          sudo rm -rf /usr/local/lib/android/sdk/platforms/android-33 2>/dev/null || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL 2>/dev/null || true
+          sudo apt-get clean
+          sudo apt-get autoclean
+          sudo apt-get autoremove -y
+          sudo rm -rf /usr/share/dotnet 2>/dev/null || true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'build-tools;34.0.0 platforms;android-34'
+
+      - name: Update npm
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Fix Expo SDK dependency versions
+        run: npx expo install --fix
+
+      - name: Create .env file
+        run: |
+          echo "EXPO_PUBLIC_SUPABASE_URL=${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}" > .env
+          echo "EXPO_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}" >> .env
+
+      - name: Prebuild Android
+        run: npx expo prebuild --platform android --clean --non-interactive
+        env:
+          NODE_ENV: production
+
+      - name: Decode release keystore
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/app/release.keystore.jks
+
+      - name: Write signing patch script
+        run: |
+          cat > /tmp/patch_signing.py << 'PYEOF'
+          import re
+
+          path = "android/app/build.gradle"
+          with open(path) as f:
+              content = f.read()
+
+          lines = [
+              "        release {",
+              "            storeFile file('release.keystore.jks')",
+              "            storePassword System.getenv(\"ANDROID_STORE_PASSWORD\")",
+              "            keyAlias System.getenv(\"ANDROID_KEY_ALIAS\")",
+              "            keyPassword System.getenv(\"ANDROID_KEY_PASSWORD\")",
+              "        }",
+          ]
+          release_config = "\n".join(lines)
+
+          content = re.sub(
+              r"(signingConfigs\s*\{\s*debug\s*\{[^}]*\}\s*)\}",
+              lambda m: m.group(1) + release_config + "\n    }",
+              content,
+              count=1,
+          )
+
+          content = re.sub(
+              r"(release\s*\{[^}]*?)signingConfig signingConfigs\.debug",
+              r"\1signingConfig signingConfigs.release",
+              content,
+              count=1,
+          )
+
+          with open(path, "w") as f:
+              f.write(content)
+
+          print("build.gradle patched for release signing")
+          PYEOF
+
+      - name: Configure release signing
+        run: python3 /tmp/patch_signing.py
+
+      - name: Build AAB with Gradle
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew bundleRelease \
+            --no-daemon \
+            --stacktrace \
+            --parallel \
+            -Dorg.gradle.caching=true \
+            -Dorg.gradle.workers.max=4
+        env:
+          NODE_ENV: production
+          GRADLE_OPTS: "-Xmx3072m -XX:MaxMetaspaceSize=256m -XX:+UseG1GC"
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Check if AAB was created
+        run: |
+          if [ -f "android/app/build/outputs/bundle/release/app-release.aab" ]; then
+            echo "AAB created successfully!"
+            ls -lh android/app/build/outputs/bundle/release/*.aab
+          else
+            echo "AAB creation failed!"
+            exit 1
+          fi
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: varlo-app-aab
+          path: android/app/build/outputs/bundle/release/*.aab
+          retention-days: 30
