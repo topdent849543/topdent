@@ -10,6 +10,9 @@
     "start": "node server.js",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
+    "typecheck:edge": "cd supabase/functions && deno task check",
+    "test:security": "node --experimental-strip-types --test tests/*.test.mjs",
+    "check": "npm run typecheck && npm run typecheck:edge && npm run test:security",
     "android": "expo run:android",
     "ios": "expo run:ios"
   },
@@ -69,6 +72,8 @@
     "@types/react": "~19.1.10",
     "@types/three": "^0.160.0",
     "babel-preset-expo": "~54.0.11",
+    "eslint": "^9.0.0",
+    "eslint-config-expo": "~10.0.0",
     "typescript": "~5.9.2"
   },
   "engines": {

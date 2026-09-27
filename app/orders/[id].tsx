@@ -28,12 +28,13 @@ import { Button } from '@/components/Button';
 import type { Order } from '@/lib/supabase';
 import { ArabicText as Text } from '@/components/ArabicText';
 import { t } from '@/lib/i18n';
+import { OrderStatusTimeline } from '@/components/OrderStatusTimeline';
 
 const STATUS_STEPS = [
-  { key: 'pending', label: 'Order Placed', icon: CheckCircle },
-  { key: 'confirmed', label: 'Confirmed', icon: CheckCircle },
-  { key: 'processing', label: 'Processing', icon: Package },
-  { key: 'shipped', label: 'Shipped', icon: Truck },
+  { key: 'new', label: 'Order Placed', icon: CheckCircle },
+  { key: 'under_review', label: 'Under Review', icon: CheckCircle },
+  { key: 'preparing', label: 'Preparing', icon: Package },
+  { key: 'ready_for_delivery', label: 'Ready', icon: Package },
   { key: 'out_for_delivery', label: 'Out for Delivery', icon: Truck },
   { key: 'delivered', label: 'Delivered', icon: Home },
 ];
@@ -42,11 +43,22 @@ const STATUS_STEPS = [
 // aren't literal step keys above. Map them so the tracker still reflects
 // reality instead of freezing on whatever step it was last at.
 const STATUS_STEP_ALIASES: Record<string, string> = {
+  pending: 'new',
+  confirmed: 'under_review',
+  approved: 'under_review',
+  processing: 'preparing',
+  shipped: 'ready_for_delivery',
+  waiting_for_driver: 'ready_for_delivery',
+  arrived: 'out_for_delivery',
+  final_review: 'delivered',
   completed: 'delivered',
+  archived: 'delivered',
 };
 
 const EXTRA_STATUS_LABELS: Record<string, string> = {
   cancelled: 'Cancelled',
+  rejected: 'Rejected',
+  delivery_failed: 'Delivery Problem',
   returned: 'Returned',
 };
 
@@ -97,9 +109,9 @@ export default function OrderDetailScreen() {
 
   const effectiveStatus = STATUS_STEP_ALIASES[order.status] ?? order.status;
   const currentStepIdx = STATUS_STEPS.findIndex(s => s.key === effectiveStatus);
-  const isCancelled = order.status === 'cancelled';
+  const isCancelled = ['cancelled', 'rejected', 'delivery_failed'].includes(order.status);
   const isReturned = order.status === 'returned';
-  const isDelivered = order.status === 'delivered' || order.status === 'completed';
+  const isDelivered = ['delivered', 'final_review', 'completed', 'archived'].includes(order.status);
 
   const handleCancel = () => {
     Alert.alert(
@@ -111,7 +123,16 @@ export default function OrderDetailScreen() {
           text: t('Yes, Cancel'),
           style: 'destructive',
           onPress: async () => {
-            await supabase.from(t('orders')).update({ status: t('cancelled') }).eq(t('id'), order.id);
+            const { error } = await supabase.rpc('transition_order_status', {
+              p_order_id: order.id,
+              p_next_status: 'cancelled',
+              p_company_id: (order as any).company_id ?? null,
+              p_reason: 'Cancelled by customer',
+            });
+            if (error) {
+              Alert.alert(t('Unable to cancel order'), error.message);
+              return;
+            }
             await load();
           },
         },
@@ -195,6 +216,10 @@ export default function OrderDetailScreen() {
           </View>
         ) : null}
         <View style={styles.section}>
+          <Text style={styles.sectionTitle}>سجل حالة الطلب</Text>
+          <OrderStatusTimeline orderId={order.id} />
+        </View>
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Items ({order.order_items?.length ?? 0})</Text>
           {order.order_items?.map(item => (
             <View key={item.id} style={styles.itemCard}>
@@ -228,9 +253,11 @@ export default function OrderDetailScreen() {
                 <Text style={styles.addressText}>
                   {(order.shipping_address as any)?.branch_name ?? ''}
                 </Text>
-                <Text style={styles.addressText}>
-                  {(order.shipping_address as any)?.branch_address ?? ''}
-                </Text>
+              <Text style={styles.addressText}>
+                {(order.shipping_address as any)?.branch_address ?? ''}
+              </Text>
+                {(order as any).delivery_type ? <Text style={styles.addressText}>سرعة التوصيل: {(order as any).delivery_type === 'express' ? 'عاجل' : 'عادي'}</Text> : null}
+                {(order as any).delivery_slot ? <Text style={styles.addressText}>الموعد المفضل: {new Date((order as any).delivery_slot).toLocaleString()}</Text> : null}
                 {(order.shipping_address as any)?.branch_phone ? (
                   <Text style={styles.addressText}>Phone: {(order.shipping_address as any)?.branch_phone}</Text>
                 ) : null}
@@ -310,7 +337,7 @@ export default function OrderDetailScreen() {
             title="View Invoice"
             onPress={() => router.push(`/invoice/${order.id}`)}
           />
-          {!isCancelled && !isDelivered && order.status === 'pending' ? (
+          {!isCancelled && !isDelivered && ['new', 'under_review', 'pending'].includes(order.status) ? (
             <Button title="Cancel Order" onPress={handleCancel} variant="outline" />
           ) : null}
           {isDelivered ? (

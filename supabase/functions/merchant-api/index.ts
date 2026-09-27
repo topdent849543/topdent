@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.58.0";
+import { companyIds, hasPermission, hasRole, loadActorAuthorization, merchantApiPermission } from "../_shared/authorization.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -49,6 +50,19 @@ Deno.serve(async (req: Request) => {
     const path = apiIdx >= 0 ? fullPath.slice(apiIdx + "/merchant-api".length) : fullPath;
     const method = req.method;
     const searchParams = url.searchParams;
+    const authorization = await loadActorAuthorization(supabase, user.id);
+    if (!authorization?.accountActive || !hasRole(authorization, "company_manager", "company_admin")) {
+      return jsonResponse({ error: "Company membership required" }, 403);
+    }
+    const allowedCompanyIds = companyIds(authorization);
+    const bodyForAuth = method === "POST" ? await req.clone().json().catch(() => ({})) as Record<string, unknown> : {};
+    const requestedCompanyId = typeof bodyForAuth.company_id === "string" ? bodyForAuth.company_id : searchParams.get("company_id");
+    const companyId = requestedCompanyId ?? allowedCompanyIds[0] ?? null;
+    if (!companyId || !allowedCompanyIds.includes(companyId)) return jsonResponse({ error: "Company scope denied" }, 403);
+    const requiredPermission = merchantApiPermission(path, method, bodyForAuth);
+    if (!requiredPermission || !hasPermission(authorization, requiredPermission, companyId)) {
+      return jsonResponse({ error: "Permission denied" }, 403);
+    }
 
     // ── GET /orders — full order details for the merchant ──
     if (path === "/orders" && method === "GET") {
@@ -56,13 +70,16 @@ Deno.serve(async (req: Request) => {
       let query = supabase
         .from("order_items")
         .select("*, order:orders(*), product:products(*)")
-        .eq("merchant_id", user.id)
+        .eq("company_id", companyId)
         .order("created_at", { ascending: false });
-      if (statusFilter && statusFilter !== "all") {
-        query = query.eq("order.status", statusFilter);
-      }
       const { data, error } = await query;
       if (error) return jsonResponse({ error: error.message }, 500);
+
+      const scopedOrderIds = [...new Set((data || []).map((item: any) => item.order?.id).filter(Boolean))];
+      const { data: fulfillmentRows } = scopedOrderIds.length
+        ? await supabase.from("company_order_fulfillments").select("order_id,status").eq("company_id", companyId).in("order_id", scopedOrderIds)
+        : { data: [] };
+      const fulfillmentStatus = new Map((fulfillmentRows ?? []).map((row: { order_id: string; status: string }) => [row.order_id, row.status]));
 
       // Fetch customer profiles
       const orderIds = [...new Set((data || []).map((item: any) => item.order?.id).filter(Boolean))];
@@ -98,34 +115,42 @@ Deno.serve(async (req: Request) => {
         order: item.order
           ? {
               ...item.order,
+              status: fulfillmentStatus.get(item.order.id) ?? item.order.status,
               customer: item.order.user_id ? customerMap[item.order.user_id] ?? null : null,
             }
           : null,
       }));
 
-      return jsonResponse({ items });
+      const filteredItems = statusFilter && statusFilter !== "all"
+        ? items.filter((item: any) => item.order?.status === statusFilter)
+        : items;
+      return jsonResponse({ items: filteredItems });
     }
 
     // ── POST /orders/:orderId/status — update order status ──
     if (path.match(/^\/orders\/[^/]+\/status$/) && method === "POST") {
       const orderId = path.split("/")[2];
-      const body = await req.json();
-      const { status, note } = body;
+      const body = bodyForAuth;
+      const status = typeof body.status === "string" ? body.status : "";
+      const note = typeof body.note === "string" ? body.note.trim() : "";
 
       if (!status) {
         return jsonResponse({ error: "Status is required" }, 400);
       }
 
-      const validStatuses = ["pending", "confirmed", "processing", "shipped", "out_for_delivery", "delivered", "completed", "cancelled", "returned", "refunded"];
+      const validStatuses = ["pending", "confirmed", "processing", "shipped", "out_for_delivery", "delivered", "completed", "cancelled", "approved", "preparing", "ready_for_delivery", "waiting_for_driver", "rejected"];
       if (!validStatuses.includes(status)) {
         return jsonResponse({ error: "Invalid status" }, 400);
       }
 
-      const { data: result, error: rpcError } = await supabase.rpc("update_order_status", {
-        p_order_id: orderId,
-        p_new_status: status,
-        p_note: note || null,
-        p_caller_id: user.id,
+      const normalizedStatus: Record<string, string> = {
+        pending: "new", confirmed: "approved", processing: "preparing", shipped: "ready_for_delivery",
+        approved: "approved", preparing: "preparing", ready_for_delivery: "ready_for_delivery",
+        waiting_for_driver: "waiting_for_driver", cancelled: "cancelled", rejected: "rejected",
+      };
+      const { data: result, error: rpcError } = await supabase.rpc("transition_company_fulfillment", {
+        p_order_id: orderId, p_company_id: companyId,
+        p_next_status: normalizedStatus[status] ?? status, p_reason: note || null,
       });
 
       if (rpcError) {
@@ -139,9 +164,14 @@ Deno.serve(async (req: Request) => {
     if (path.match(/^\/orders\/[^/]+\/history$/) && method === "GET") {
       const orderId = path.split("/")[2];
 
+      const { data: fulfillment } = await supabase.from("company_order_fulfillments").select("id")
+        .eq("order_id", orderId).eq("company_id", companyId).maybeSingle();
+      if (!fulfillment) return jsonResponse({ error: "Order not found in this company" }, 404);
+
       const { data: history, error } = await supabase
-        .from("order_status_history")
-        .select("*")
+        .from("company_order_status_history")
+        .select("id,order_id,company_id,from_status,to_status,note,created_at,actor_user_id")
+        .eq("company_id", companyId)
         .eq("order_id", orderId)
         .order("created_at", { ascending: false });
 
@@ -149,7 +179,7 @@ Deno.serve(async (req: Request) => {
 
       // Fetch changer names separately — changed_by references auth.users,
       // not profiles, so PostgREST can't embed it directly via a FK hint.
-      const changerIds = [...new Set((history || []).map((h: any) => h.changed_by).filter(Boolean))];
+      const changerIds = [...new Set((history || []).map((h: any) => h.actor_user_id).filter(Boolean))];
       let changerMap: Record<string, any> = {};
       if (changerIds.length > 0) {
         const { data: changerProfiles } = await supabase
@@ -163,7 +193,8 @@ Deno.serve(async (req: Request) => {
 
       const enriched = (history || []).map((h: any) => ({
         ...h,
-        changer: h.changed_by ? changerMap[h.changed_by] ?? null : null,
+        changed_by: h.actor_user_id,
+        changer: h.actor_user_id ? changerMap[h.actor_user_id] ?? null : null,
       }));
 
       return jsonResponse({ history: enriched });
@@ -174,7 +205,7 @@ Deno.serve(async (req: Request) => {
       const { data, error } = await supabase
         .from("order_items")
         .select("*, order:orders(*), product:products(*)")
-        .eq("merchant_id", user.id)
+        .eq("company_id", companyId)
         .order("created_at", { ascending: false });
 
       if (error) return jsonResponse({ error: error.message }, 500);
@@ -217,7 +248,7 @@ Deno.serve(async (req: Request) => {
       const { data: products, error } = await supabase
         .from("products")
         .select("*, category:categories(name), images:product_images(image_url, sort_order)")
-        .eq("merchant_id", user.id)
+        .eq("company_id", companyId)
         .order("created_at", { ascending: false });
 
       if (error) return jsonResponse({ error: error.message }, 500);

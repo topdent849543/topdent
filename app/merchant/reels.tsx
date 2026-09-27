@@ -53,7 +53,7 @@ const emptyForm: FormState = {
 };
 
 export default function MerchantReelsScreen() {
-  const { user, isMerchant } = useAuth();
+  const { user, isMerchant, activeCompany } = useAuth();
   const [reels, setReels] = useState<ReelWithProduct[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,7 +80,7 @@ export default function MerchantReelsScreen() {
         supabase
           .from('products')
           .select('*')
-          .eq('merchant_id', user.id)
+          .eq('company_id', activeCompany?.id ?? '')
           .eq('status', 'active')
           .order('created_at', { ascending: false }),
       ]);
@@ -93,7 +93,7 @@ export default function MerchantReelsScreen() {
     } catch (e: any) {
       setError(e.message || 'Failed to load reels');
     }
-  }, [user]);
+  }, [user, activeCompany?.id]);
 
   useFocusEffect(
     useCallback(() => {

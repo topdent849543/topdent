@@ -853,7 +853,7 @@ export default function AdminWithdrawalsScreen() {
 
             <View style={[styles.warningBox, { backgroundColor: colors.success[50], borderColor: colors.success[200] }]}>
               <Text style={[styles.warningText, { color: colors.success[700] }]}>
-                Make sure you have sent the payments to each publisher's payment account before
+                Make sure you have sent the payments to each publisher&apos;s payment account before
                 confirming. Each publisher will receive a notification and receipt.
               </Text>
             </View>

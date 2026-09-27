@@ -74,7 +74,7 @@ type Stats = {
 const ADMIN_API_BASE = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/admin-api`;
 
 export default function AdminDashboardScreen() {
-  const { user, profile, isAdmin, signOut } = useAuth();
+  const { user, profile, isAdmin, signOut, hasPermission } = useAuth();
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -231,6 +231,20 @@ export default function AdminDashboardScreen() {
     { label: 'Merchants', description: 'View all merchants, sales stats & order history', icon: <Store size={24} color={colors.primary[600]} />, onPress: () => router.push('/admin/merchants'), color: colors.accent[50] },
   ];
 
+  const visibleQuickLinks = quickLinks.filter((link) => {
+    if (link.label === 'المحادثات' || link.label === 'تذاكر الدعم' || link.label === 'Manage Users') return hasPermission('users.view');
+    if (link.label === 'إعدادات عامة' || link.label === 'التصنيفات') return hasPermission('settings.manage');
+    if (link.label === 'البنرات') return hasPermission('banners.manage');
+    if (link.label === 'طلبات الدفع') return hasPermission('finance.manage_topups');
+    if (link.label === 'طرق الدفع') return hasPermission('finance.view');
+    if (link.label === 'Manage Withdrawals') return hasPermission('finance.manage_withdrawals');
+    if (link.label === 'All Orders') return hasPermission('orders.view');
+    if (link.label === 'All Products') return hasPermission('products.view');
+    if (link.label === 'Shipping Branches') return hasPermission('shipping.manage_settings');
+    if (link.label === 'Merchants') return hasPermission('companies.view');
+    return false;
+  });
+
   const orderStatusLabels: Record<string, string> = {
     pending: 'Pending', confirmed: 'Confirmed', shipped: 'Shipped', delivered: 'Delivered', cancelled: 'Cancelled', completed: 'Completed',
   };
@@ -263,11 +277,13 @@ export default function AdminDashboardScreen() {
                 <Text style={styles.welcomeStatValue}>{stats?.totalOrders ?? '—'}</Text>
                 <Text style={styles.welcomeStatLabel}>Orders</Text>
               </View>
-              <View style={styles.welcomeStatDivider} />
-              <View style={styles.welcomeStatItem}>
-                <Text style={styles.welcomeStatValue}>{fmt(stats?.totalRevenue)}</Text>
-                <Text style={styles.welcomeStatLabel}>Revenue</Text>
-              </View>
+              {hasPermission('finance.view') ? <>
+                <View style={styles.welcomeStatDivider} />
+                <View style={styles.welcomeStatItem}>
+                  <Text style={styles.welcomeStatValue}>{fmt(stats?.totalRevenue)}</Text>
+                  <Text style={styles.welcomeStatLabel}>Revenue</Text>
+                </View>
+              </> : null}
             </View>
           </View>
           <View style={styles.welcomeIcon}>
@@ -282,20 +298,21 @@ export default function AdminDashboardScreen() {
         ) : null}
 
         {/* Revenue section */}
-        <Text style={styles.sectionTitle}>Revenue Overview</Text>
-        <View style={styles.statsGrid}>
-          {revenueCards.map((card, idx) => (
-            <View key={idx} style={styles.statCard}>
-              <View style={[styles.statIcon, { backgroundColor: card.iconBg }]}>
-                {card.icon}
+        {hasPermission('finance.view') ? <>
+          <Text style={styles.sectionTitle}>Revenue Overview</Text>
+          <View style={styles.statsGrid}>
+            {revenueCards.map((card, idx) => (
+              <View key={idx} style={styles.statCard}>
+                <View style={[styles.statIcon, { backgroundColor: card.iconBg }]}>{card.icon}</View>
+                <Text style={styles.statValue}>{card.value}</Text>
+                <Text style={styles.statLabel}>{card.label}</Text>
               </View>
-              <Text style={styles.statValue}>{card.value}</Text>
-              <Text style={styles.statLabel}>{card.label}</Text>
-            </View>
-          ))}
-        </View>
+            ))}
+          </View>
+        </> : null}
 
         {/* Users section */}
+        {hasPermission('users.view') ? <>
         <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>Users Overview</Text>
         <View style={styles.statsGrid}>
           {userCards.map((card, idx) => (
@@ -308,8 +325,10 @@ export default function AdminDashboardScreen() {
             </View>
           ))}
         </View>
+        </> : null}
 
         {/* Orders section */}
+        {hasPermission('orders.view') ? <>
         <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>Orders</Text>
         <View style={styles.statsGrid}>
           {orderCards.map((card, idx) => (
@@ -322,8 +341,10 @@ export default function AdminDashboardScreen() {
             </View>
           ))}
         </View>
+        </> : null}
 
         {/* Products & inventory section */}
+        {hasPermission('products.view') ? <>
         <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>Products & Inventory</Text>
         <View style={styles.statsGrid}>
           {inventoryCards.map((card, idx) => (
@@ -336,6 +357,7 @@ export default function AdminDashboardScreen() {
             </View>
           ))}
         </View>
+        </> : null}
 
         {/* Orders by status breakdown */}
         {stats?.ordersByStatus && Object.keys(stats.ordersByStatus).length > 0 ? (
@@ -357,7 +379,7 @@ export default function AdminDashboardScreen() {
 
         {/* Quick actions */}
         <Text style={[styles.sectionTitle, { marginTop: spacing.lg }]}>Quick Actions</Text>
-        {quickLinks.map((link, idx) => (
+        {visibleQuickLinks.map((link, idx) => (
           <TouchableOpacity
             key={idx}
             style={styles.quickLinkCard}

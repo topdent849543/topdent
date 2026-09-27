@@ -1,0 +1,7 @@
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, View } from 'react-native';
+import { ArabicText as Text } from '@/components/ArabicText';
+import { callDriverApi } from '@/lib/driverApi';
+import { colors, spacing, radius } from '@/lib/theme';
+export default function DriverProblems(){const [rows,setRows]=useState<any[]>([]);const [loading,setLoading]=useState(true);const load=useCallback(async()=>{try{const data=await callDriverApi<{assignments:any[]}>({action:'my-orders'});setRows((data.assignments??[]).filter(r=>r.problem_note));}catch{setRows([]);}finally{setLoading(false);}},[]);useEffect(()=>{load();},[load]);return <SafeAreaView style={s.screen}><ScrollView contentContainerStyle={s.content}><Text style={s.title}>المشكلات المسجلة</Text>{loading?<ActivityIndicator color={colors.primary[600]}/>:rows.map(r=><View key={r.id} style={s.card}><Text style={s.label}>الطلب: {r.order_id}</Text><Text style={s.text}>{r.problem_note}</Text></View>)}{!loading&&!rows.length?<Text style={s.text}>لا توجد بلاغات حالية.</Text>:null}</ScrollView></SafeAreaView>;}
+const s=StyleSheet.create({screen:{flex:1,backgroundColor:colors.background},content:{padding:spacing.lg,gap:spacing.md},title:{fontSize:24,fontWeight:'800',color:colors.text},card:{backgroundColor:colors.surface,padding:spacing.md,borderRadius:radius.md,borderWidth:1,borderColor:colors.border,gap:spacing.sm},label:{fontWeight:'700',color:colors.text},text:{color:colors.textSecondary}});

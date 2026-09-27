@@ -37,21 +37,21 @@ type Stats = {
 };
 
 export default function MerchantDashboardScreen() {
-  const { user, profile, isMerchant, signOut } = useAuth();
+  const { user, profile, isMerchant, signOut, activeCompany } = useAuth();
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!user) return;
+    if (!user || !activeCompany?.id) return;
     setError(null);
     try {
       const [productsRes, reelsRes, ordersRes, walletRes] = await Promise.all([
         supabase
           .from('products')
           .select('id', { count: 'exact', head: true })
-          .eq('merchant_id', user.id),
+          .eq('company_id', activeCompany.id),
         supabase
           .from('reels')
           .select('id', { count: 'exact', head: true })
@@ -59,7 +59,7 @@ export default function MerchantDashboardScreen() {
         supabase
           .from('order_items')
           .select('id', { count: 'exact', head: true })
-          .eq('merchant_id', user.id),
+          .eq('company_id', activeCompany.id),
         supabase
           .from('wallets')
           .select('*')
@@ -81,7 +81,7 @@ export default function MerchantDashboardScreen() {
     } catch (e: any) {
       setError(e.message || 'Failed to load dashboard');
     }
-  }, [user]);
+  }, [user, activeCompany?.id]);
 
   useFocusEffect(
     useCallback(() => {

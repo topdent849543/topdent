@@ -121,7 +121,7 @@ const generateSlug = (name: string) => {
 };
 
 export default function MerchantProductsScreen() {
-  const { user, isMerchant } = useAuth();
+  const { user, isMerchant, activeCompany } = useAuth();
   const [products, setProducts] = useState<ProductWithRelations[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -148,14 +148,14 @@ export default function MerchantProductsScreen() {
   const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async () => {
-    if (!user) return;
+    if (!user || !activeCompany?.id) return;
     setError(null);
     try {
       const [productsRes, categoriesRes] = await Promise.all([
         supabase
           .from('products')
           .select('*, category:categories(*), images:product_images(*), variants:product_variants(*)')
-          .eq('merchant_id', user.id)
+          .eq('company_id', activeCompany.id)
           .order('created_at', { ascending: false }),
         supabase.from('categories').select('*').eq('is_active', true),
       ]);
@@ -168,7 +168,7 @@ export default function MerchantProductsScreen() {
     } catch (e: any) {
       setError(e.message || 'Failed to load products');
     }
-  }, [user]);
+  }, [user, activeCompany?.id]);
 
   useFocusEffect(
     useCallback(() => {
@@ -274,7 +274,10 @@ export default function MerchantProductsScreen() {
   };
 
   const handleSave = async () => {
-    if (!user) return;
+    if (!user || !activeCompany?.id) {
+      Alert.alert('Company required', 'Select an active company before managing products.');
+      return;
+    }
     // Validation
     if (!form.name.trim()) {
       Alert.alert('Validation Error', 'Product name is required.');
@@ -361,6 +364,7 @@ export default function MerchantProductsScreen() {
             category_id: form.category_id || null,
             status: form.status,
             merchant_id: user.id,
+            company_id: activeCompany.id,
             rating: 0,
             review_count: 0,
             is_featured: false,

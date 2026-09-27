@@ -20,6 +20,7 @@ import {
   Link2,
   Users,
   Banknote,
+  Truck,
 } from 'lucide-react-native';
 import { colors, spacing, radius, typography, shadows } from '@/lib/theme';
 import { useAuth } from '@/lib/AuthContext';
@@ -27,7 +28,7 @@ import { ArabicText as Text } from '@/components/ArabicText';
 import { DeleteAccountButton } from '@/components/DeleteAccountButton';
 
 export default function AccountScreen() {
-  const { user, profile, signOut, isAdmin, isMerchant, isPublisher } = useAuth();
+  const { user, profile, activeMembership, signOut, isAdmin, isMerchant, isPublisher, hasPermission } = useAuth();
 
   if (!user) {
     return (
@@ -50,9 +51,7 @@ export default function AccountScreen() {
     );
   }
 
-  const roleLabel = profile?.role
-    ? profile.role.charAt(0).toUpperCase() + profile.role.slice(1)
-    : 'Customer';
+  const roleLabel = activeMembership?.role.name ?? 'Customer';
 
   const customerItems = [
     { icon: Package, label: 'My Orders', action: () => router.push('/orders') },
@@ -67,6 +66,7 @@ export default function AccountScreen() {
   ];
 
   const merchantItems = [
+    { icon: Users, label: 'Company Dashboard', action: () => router.push('/company') },
     { icon: Store, label: 'Merchant Dashboard', action: () => router.push('/merchant') },
     { icon: ShoppingBag, label: 'My Products', action: () => router.push('/merchant/products') },
     { icon: Film, label: 'My Reels', action: () => router.push('/merchant/reels') },
@@ -89,9 +89,16 @@ export default function AccountScreen() {
   ];
 
   const dashboards = [
-    ...(isAdmin ? adminItems : []),
-    ...(isMerchant ? merchantItems : []),
-    ...(isPublisher ? publisherItems : []),
+    ...(isAdmin && ['orders.view','products.view','drivers.view','users.view','companies.view','roles.view','audit_logs.view','finance.view','reports.view'].some((p) => hasPermission(p))
+      ? [{ icon: Shield, label: 'Platform Dashboard', action: () => router.push('/platform') }] : []),
+    ...(isMerchant && hasPermission('companies.view') ? merchantItems.slice(0, 1) : []),
+    ...(isMerchant ? merchantItems.slice(1).filter((item, i) => {
+      const perms = ['reports.view', 'products.view', 'products.view', 'orders.view', 'finance.view', 'withdrawals.create'];
+      return hasPermission(perms[i] ?? 'companies.view');
+    }) : []),
+    ...(isPublisher && hasPermission('affiliate.manage_self') ? publisherItems : []),
+    ...(hasPermission('drivers.accept_orders') ? [{ icon: Truck, label: 'Driver Dashboard', action: () => router.push('/driver') }] : []),
+    ...(isAdmin ? adminItems.filter((_, i) => i === 2 ? hasPermission('finance.manage_withdrawals') : hasPermission(i === 1 ? 'users.view' : 'reports.view')) : []),
   ];
 
   return (

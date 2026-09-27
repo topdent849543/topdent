@@ -114,7 +114,7 @@ export default function SizeGuideScreen() {
         <View style={styles.noteCard}>
           <Text style={styles.noteTitle}>International Size Conversion</Text>
           <Text style={styles.noteText}>
-            Sizes may vary between brands. If you're between sizes, we recommend sizing up for a more comfortable fit.
+            Sizes may vary between brands. If you&apos;re between sizes, we recommend sizing up for a more comfortable fit.
             For specific product measurements, check the product description.
           </Text>
         </View>

@@ -143,7 +143,7 @@ export default function LoginScreen() {
             onPress={() => router.push(signupHref as any)}
           >
             <Text style={styles.signupText}>
-              Don't have an account? <Text style={styles.signupLink}>Sign Up</Text>
+              Don&apos;t have an account? <Text style={styles.signupLink}>Sign Up</Text>
             </Text>
           </TouchableOpacity>
         </View>
