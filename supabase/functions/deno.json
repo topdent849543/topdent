@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitAny": true
+  },
+  "tasks": {
+    "check": "deno check admin-api/index.ts affiliate-redirect/index.ts ai-chat/index.ts company-admin/index.ts driver-api/index.ts merchant-api/index.ts order-admin/index.ts product-admin/index.ts role-admin/index.ts user-admin/index.ts"
+  }
+}

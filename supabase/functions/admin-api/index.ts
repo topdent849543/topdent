@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.58.0";
+import { adminApiPermissions, hasPermission, loadActorAuthorization } from "../_shared/authorization.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,37 +30,39 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ error: "Unauthorized" }, 401);
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role, is_banned")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (!profile || profile.role !== "admin") {
-      return jsonResponse({ error: "Admin access required" }, 403);
-    }
-
     const url = new URL(req.url);
     const fullPath = url.pathname;
     const adminApiIndex = fullPath.indexOf("/admin-api");
     const path = adminApiIndex >= 0 ? fullPath.slice(adminApiIndex + "/admin-api".length) : fullPath;
     const method = req.method;
     const searchParams = url.searchParams;
+    const authorization = await loadActorAuthorization(supabase, user.id);
+    const requiredPermissions = adminApiPermissions(path, method);
+    if (!authorization || !authorization.accountActive || !requiredPermissions ||
+        !requiredPermissions.every((permission) => hasPermission(authorization, permission))) {
+      return jsonResponse({ error: "Permission denied" }, 403);
+    }
 
     // ── GET /stats ──────────────────────────────────────────────
     if (path === "/stats" && method === "GET") {
-      const [productsResult, ordersResult, usersResult, walletsResult, withdrawalsResult, categoriesResult, featuredResult, variantsResult] = await Promise.all([
+      const canViewFinance = hasPermission(authorization, "finance.view");
+      const [productsResult, ordersResult, usersResult, walletsResult, withdrawalsResult, categoriesResult, featuredResult, variantsResult, companiesResult, pendingProductsResult] = await Promise.all([
         supabase.from("products").select("id", { count: "exact", head: true }),
-        supabase.from("orders").select("id,total,status,created_at", { count: "exact" }),
+        canViewFinance
+          ? supabase.from("orders").select("id,total,status,created_at,collection_status", { count: "exact" })
+          : supabase.from("orders").select("id,status,created_at,collection_status", { count: "exact" }),
         supabase.from("profiles").select("id,role,is_banned,is_active", { count: "exact" }),
-        supabase.from("wallets").select("available_balance,total_earned"),
-        supabase.from("withdrawal_requests").select("amount,status"),
+        canViewFinance ? supabase.from("wallets").select("available_balance,total_earned") : Promise.resolve({ data: [] }),
+        canViewFinance ? supabase.from("withdrawal_requests").select("amount,status") : Promise.resolve({ data: [] }),
         supabase.from("categories").select("id", { count: "exact", head: true }),
         supabase.from("products").select("id", { count: "exact", head: true }).eq("is_featured", true),
         supabase.from("product_variants").select("product_id,stock"),
+        supabase.from("companies").select("id", { count: "exact", head: true }),
+        supabase.from("products").select("id", { count: "exact", head: true }).eq("approval_status", "pending_approval"),
       ]);
 
-      const totalRevenue = (ordersResult.data || [])
+      const orderRows = ((ordersResult.data ?? []) as unknown) as Array<{ status: string; created_at: string; total?: string | number; collection_status?: string }>;
+      const totalRevenue = orderRows
         .filter((o: any) => o.status !== "cancelled")
         .reduce((sum: number, o: any) => sum + parseFloat(o.total || "0"), 0);
 
@@ -76,10 +79,13 @@ Deno.serve(async (req: Request) => {
 
       const totalMerchantEarnings = (walletsResult.data || [])
         .reduce((sum: number, w: any) => sum + parseFloat(w.total_earned || "0"), 0);
+      const uncollectedAmount = canViewFinance ? orderRows
+        .filter((o) => o.collection_status === "pending" && o.status !== "cancelled")
+        .reduce((sum, o) => sum + parseFloat(String(o.total || "0")), 0) : null;
 
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const recentOrders = (ordersResult.data || []).filter(
+      const recentOrders = orderRows.filter(
         (o: any) => new Date(o.created_at) >= sevenDaysAgo
       );
       const recentRevenue = recentOrders
@@ -88,18 +94,18 @@ Deno.serve(async (req: Request) => {
 
       const startOfToday = new Date();
       startOfToday.setHours(0, 0, 0, 0);
-      const todayOrders = (ordersResult.data || []).filter(
+      const todayOrders = orderRows.filter(
         (o: any) => new Date(o.created_at) >= startOfToday
       );
       const todayRevenue = todayOrders
         .filter((o: any) => o.status !== "cancelled")
         .reduce((sum: number, o: any) => sum + parseFloat(o.total || "0"), 0);
 
-      const nonCancelledOrders = (ordersResult.data || []).filter((o: any) => o.status !== "cancelled");
+      const nonCancelledOrders = orderRows.filter((o) => o.status !== "cancelled");
       const avgOrderValue = nonCancelledOrders.length > 0 ? totalRevenue / nonCancelledOrders.length : 0;
 
       const ordersByStatus: Record<string, number> = {};
-      for (const o of ordersResult.data || []) {
+      for (const o of orderRows) {
         ordersByStatus[o.status] = (ordersByStatus[o.status] || 0) + 1;
       }
 
@@ -117,16 +123,19 @@ Deno.serve(async (req: Request) => {
         totalUsers: usersResult.count || 0,
         totalOrders: ordersResult.count || 0,
         totalProducts: productsResult.count || 0,
-        totalRevenue: totalRevenue.toFixed(2),
-        pendingWithdrawals: pendingWithdrawals.toFixed(2),
-        totalPaidOut: totalPaidOut.toFixed(2),
-        totalWalletBalance: totalWalletBalance.toFixed(2),
-        totalMerchantEarnings: totalMerchantEarnings.toFixed(2),
-        recentRevenue: recentRevenue.toFixed(2),
+        totalCompanies: companiesResult.count || 0,
+        pendingProducts: pendingProductsResult.count || 0,
+        totalRevenue: canViewFinance ? totalRevenue.toFixed(2) : null,
+        pendingWithdrawals: canViewFinance ? pendingWithdrawals.toFixed(2) : null,
+        totalPaidOut: canViewFinance ? totalPaidOut.toFixed(2) : null,
+        totalWalletBalance: canViewFinance ? totalWalletBalance.toFixed(2) : null,
+        totalMerchantEarnings: canViewFinance ? totalMerchantEarnings.toFixed(2) : null,
+        uncollectedAmount: uncollectedAmount === null ? null : uncollectedAmount.toFixed(2),
+        recentRevenue: canViewFinance ? recentRevenue.toFixed(2) : null,
         recentOrdersCount: recentOrders.length,
-        todayRevenue: todayRevenue.toFixed(2),
+        todayRevenue: canViewFinance ? todayRevenue.toFixed(2) : null,
         todayOrdersCount: todayOrders.length,
-        avgOrderValue: avgOrderValue.toFixed(2),
+        avgOrderValue: canViewFinance ? avgOrderValue.toFixed(2) : null,
         ordersByStatus,
         merchants: allUsers.filter((u: any) => u.role === "merchant").length,
         publishers: allUsers.filter((u: any) => u.role === "publisher").length,

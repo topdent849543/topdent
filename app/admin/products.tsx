@@ -908,7 +908,7 @@ export default function AdminProductsScreen() {
             </View>
             <Text style={styles.modalTitle}>Delete Product?</Text>
             <Text style={styles.modalMsg}>
-              Are you sure you want to delete "{deleteTarget?.name}"? This action cannot be undone.
+              Are you sure you want to delete &quot;{deleteTarget?.name}&quot;? This action cannot be undone.
             </Text>
             <View style={styles.modalActions}>
               <View style={{ flex: 1 }}>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -19,6 +19,7 @@ import {
   ChevronDown,
   ChevronUp,
   AlertTriangle,
+  Truck,
 } from 'lucide-react-native';
 import { colors, spacing, radius, typography, shadows } from '@/lib/theme';
 import { useCart } from '@/lib/CartContext';
@@ -46,9 +47,25 @@ export default function CheckoutScreen() {
   const [branches, setBranches] = useState<ShippingBranch[]>([]);
   const [selectedGovernorate, setSelectedGovernorate] = useState<string>('');
   const [selectedBranch, setSelectedBranch] = useState<ShippingBranch | null>(null);
+  const [deliveryType, setDeliveryType] = useState<'standard' | 'express'>('standard');
+  const [deliverySlot, setDeliverySlot] = useState('');
   const [showGovernorates, setShowGovernorates] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
+  const deliverySlots = useMemo(() => {
+    const now = new Date();
+    const windows = [{ hour: 10, label: '10:00–13:00' }, { hour: 14, label: '14:00–17:00' }, { hour: 18, label: '18:00–21:00' }];
+    return Array.from({ length: 5 }, (_, day) => {
+      const date = new Date(now);
+      date.setDate(now.getDate() + day);
+      return windows.flatMap((window) => {
+        const start = new Date(date);
+        start.setHours(window.hour, 0, 0, 0);
+        if (start.getTime() <= now.getTime() + 60 * 60 * 1000) return [];
+        return [{ value: start.toISOString(), label: `${day === 0 ? 'اليوم' : start.toLocaleDateString('ar-SY', { weekday: 'short', month: 'short', day: 'numeric' })} · ${window.label}` }];
+      });
+    }).flat();
+  }, []);
   const [loading, setLoading] = useState(true);
   const [orderJustPlaced, setOrderJustPlaced] = useState(false);
   const [placing, setPlacing] = useState(false);
@@ -92,6 +109,10 @@ export default function CheckoutScreen() {
     Promise.all([loadShippingData(), loadWallet(), loadSettings()]).finally(() => setLoading(false));
   }, [loadShippingData, loadWallet, loadSettings]);
 
+  useEffect(() => {
+    if (!deliverySlot && deliverySlots.length) setDeliverySlot(deliverySlots[0].value);
+  }, [deliverySlot, deliverySlots]);
+
   const upfrontPct = settings.upfront_percentage;
   const shippingCost = settings.shipping_flat_cost;
   const tax = subtotal * (settings.tax_rate / 100);
@@ -120,9 +141,11 @@ export default function CheckoutScreen() {
         affiliateCode = await AsyncStorage.getItem('affiliate_ref');
       } catch {}
 
-      const { data, error } = await supabase.rpc('place_order_from_cart', {
+      const { data, error } = await supabase.rpc('place_order_from_cart_with_delivery', {
         p_shipping_branch_id: selectedBranch!.id,
         p_affiliate_code: affiliateCode,
+        p_delivery_type: deliveryType,
+        p_delivery_slot: deliverySlot,
       });
 
       if (error) throw error;
@@ -164,7 +187,7 @@ export default function CheckoutScreen() {
       setPlacing(false);
       placingRef.current = false;
     }
-  }, [selectedBranch, upfrontAmount, walletBalance, clearCart, loadWallet]);
+  }, [selectedBranch, deliveryType, deliverySlot, upfrontAmount, walletBalance, clearCart, loadWallet]);
 
   const placeOrder = useCallback(() => {
     if (placingRef.current || placing) return;
@@ -174,6 +197,10 @@ export default function CheckoutScreen() {
     }
     if (!selectedBranch) {
       Alert.alert(t('Branch required'), t('Please select a shipping branch.'));
+      return;
+    }
+    if (!deliverySlot) {
+      Alert.alert('موعد التوصيل مطلوب', 'يرجى اختيار موعد مناسب للتوصيل.');
       return;
     }
     if (items.length === 0) {
@@ -196,6 +223,8 @@ export default function CheckoutScreen() {
           `سيتم خصم ${formatSyp(upfrontAmount)} (${upfrontPct}% من إجمالي ${formatSyp(total)}) ` +
           `من رصيد محفظتك فوراً.\n` +
           `المتبقي عند الاستلام: ${formatSyp(remainingAmount)}\n` +
+          `سرعة التوصيل: ${deliveryType === 'express' ? 'عاجل' : 'عادي'}\n` +
+          `موعد التوصيل: ${deliverySlots.find(slot => slot.value === deliverySlot)?.label ?? ''}\n` +
           `الفرع: ${selectedBranch.branch_name}\n\nهل تريد المتابعة؟`,
         confirmText: 'ادفع الآن',
         cancelText: 'إلغاء',
@@ -204,7 +233,7 @@ export default function CheckoutScreen() {
       () => { void submitOrder(); }
     );
   }, [
-    user, selectedBranch, items.length, balanceEnough, walletBalance,
+    user, selectedBranch, deliveryType, deliverySlot, deliverySlots, items.length, balanceEnough, walletBalance,
     upfrontPct, upfrontAmount, remainingAmount, total, placing, submitOrder,
   ]);
 
@@ -324,6 +353,27 @@ export default function CheckoutScreen() {
           )}
         </Section>
 
+        <Section title="سرعة وموعد التوصيل" icon={<Truck size={18} color={colors.primary[600]} />}>
+          <Text style={styles.helperText}>اختر تفضيل سرعة التوصيل والنافذة الزمنية المناسبة. السعر الحالي للشحن محسوب من إعدادات التطبيق.</Text>
+          <View style={styles.deliveryOptions}>
+            {([['standard', 'عادي', 'التوصيل وفق وقت تجهيز التاجر'], ['express', 'عاجل', 'أولوية في التجهيز حسب التوفر']] as const).map(([value, label, hint]) => (
+              <TouchableOpacity key={value} style={[styles.deliveryOption, deliveryType === value && styles.deliveryOptionActive]} onPress={() => setDeliveryType(value)}>
+                <View style={{ flex: 1 }}><Text style={styles.optionLabel}>{label}</Text><Text style={styles.optionDesc}>{hint}</Text></View>
+                <View style={styles.radioOuter}>{deliveryType === value ? <View style={styles.radioSelected} /> : null}</View>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text style={styles.branchListTitle}>موعد التوصيل المفضل</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.slotList}>
+            {deliverySlots.map(slot => (
+              <TouchableOpacity key={slot.value} style={[styles.slotChip, deliverySlot === slot.value && styles.slotChipActive]} onPress={() => setDeliverySlot(slot.value)}>
+                <Text style={[styles.slotText, deliverySlot === slot.value && styles.slotTextActive]}>{slot.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+          {!deliverySlots.length ? <Text style={styles.emptyBranches}>لا توجد مواعيد متاحة حالياً.</Text> : null}
+        </Section>
+
         {/* Wallet Payment — الطريقة الوحيدة */}
         <Section title="الدفع من المحفظة" icon={<Wallet size={18} color={colors.primary[600]} />}>
           <View style={styles.paymentInfoBox}>
@@ -404,6 +454,14 @@ export default function CheckoutScreen() {
             </View>
           </View>
           <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>التوصيل</Text>
+            <Text style={styles.summaryValue}>{deliveryType === 'express' ? 'عاجل' : 'عادي'}</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>الموعد المفضل</Text>
+            <Text style={[styles.summaryValue, { flex: 1, textAlign: 'right', marginLeft: spacing.md }]}>{deliverySlots.find(slot => slot.value === deliverySlot)?.label ?? '—'}</Text>
+          </View>
+          <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Tax</Text>
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={styles.summaryValue}>{formatSyp(tax)}</Text>
@@ -444,7 +502,7 @@ export default function CheckoutScreen() {
             }
             onPress={placeOrder}
             loading={placing}
-            disabled={placing || !balanceEnough || !selectedBranch}
+            disabled={placing || !balanceEnough || !selectedBranch || !deliverySlot}
             fullWidth
             size="lg"
           />
@@ -516,6 +574,15 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   radioInner: { width: 0, height: 0 },
+  radioSelected: { width: 11, height: 11, borderRadius: 6, backgroundColor: colors.primary[600] },
+  deliveryOptions: { gap: spacing.sm, marginBottom: spacing.md },
+  deliveryOption: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.border },
+  deliveryOptionActive: { borderColor: colors.primary[600], backgroundColor: colors.primary[50] },
+  slotList: { gap: spacing.sm, paddingVertical: spacing.xs },
+  slotChip: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.full, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background },
+  slotChipActive: { borderColor: colors.primary[600], backgroundColor: colors.primary[50] },
+  slotText: { ...typography.caption, color: colors.textSecondary, fontWeight: '600' },
+  slotTextActive: { color: colors.primary[700] },
   paymentInfoBox: {
     backgroundColor: colors.primary[50], borderRadius: radius.md,
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm, marginBottom: spacing.md,

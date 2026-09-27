@@ -145,7 +145,7 @@ export default function RelzScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={colors.gold} />
+        <ActivityIndicator size="large" color={colors.warning[500]} />
         <Text style={styles.loadingText}>Loading Reels...</Text>
       </View>
     );
@@ -332,8 +332,8 @@ function ReelCard({ reel, isActive, isLiked, likesCount, onLike, onComment, onAd
 
         {product && (
           <TouchableOpacity style={styles.actionBtn} onPress={onAddToCart}>
-            <ShoppingBag size={30} color={colors.gold} />
-            <Text style={[styles.actionCount, { color: colors.gold }]}>Cart</Text>
+            <ShoppingBag size={30} color={colors.warning[500]} />
+            <Text style={[styles.actionCount, { color: colors.warning[500] }]}>Cart</Text>
           </TouchableOpacity>
         )}
 
@@ -359,7 +359,7 @@ function ReelCard({ reel, isActive, isLiked, likesCount, onLike, onComment, onAd
               <Text style={styles.productChipPrice}>${product.price}</Text>
             </View>
             <View style={styles.productChipCart}>
-              <ShoppingBag size={14} color={colors.dark} />
+              <ShoppingBag size={14} color={colors.neutral[950]} />
             </View>
           </TouchableOpacity>
         )}
@@ -369,13 +369,13 @@ function ReelCard({ reel, isActive, isLiked, likesCount, onLike, onComment, onAd
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.dark },
-  loadingContainer: { flex: 1, backgroundColor: colors.dark, alignItems: 'center', justifyContent: 'center', gap: 16 },
+  container: { flex: 1, backgroundColor: colors.neutral[950] },
+  loadingContainer: { flex: 1, backgroundColor: colors.neutral[950], alignItems: 'center', justifyContent: 'center', gap: 16 },
   loadingText: { ...typography.body, color: colors.neutral[400] },
-  emptyContainer: { flex: 1, backgroundColor: colors.dark, alignItems: 'center', justifyContent: 'center', gap: 12, padding: spacing.xl },
+  emptyContainer: { flex: 1, backgroundColor: colors.neutral[950], alignItems: 'center', justifyContent: 'center', gap: 12, padding: spacing.xl },
   emptyTitle: { ...typography.h3, color: colors.white },
   emptySubtitle: { ...typography.body, color: colors.neutral[500], textAlign: 'center' },
-  reelCard: { width, height, backgroundColor: colors.dark, position: 'relative' },
+  reelCard: { width, height, backgroundColor: colors.neutral[950], position: 'relative' },
   reelOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'transparent',
@@ -420,11 +420,11 @@ const styles = StyleSheet.create({
   },
   productChipImg: { width: 36, height: 36, borderRadius: 18 },
   productChipInfo: { flex: 1, gap: 1 },
-  productChipName: { ...typography.caption, color: colors.dark, fontWeight: '600' },
+  productChipName: { ...typography.caption, color: colors.neutral[950], fontWeight: '600' },
   productChipPrice: { ...typography.caption, color: colors.primary[600], fontWeight: '700' },
   productChipCart: {
     width: 28, height: 28, borderRadius: 14,
-    backgroundColor: colors.gold,
+    backgroundColor: colors.warning[500],
     alignItems: 'center', justifyContent: 'center',
   },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },

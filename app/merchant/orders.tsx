@@ -41,6 +41,9 @@ import { ArabicText as Text, ArabicTextInput as TextInputArabic } from '@/compon
 import { useAuth } from '@/lib/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/Button';
+import { CompanyPicker } from '@/components/CompanyPicker';
+import { DriverAssignmentModal } from '@/components/DriverAssignmentModal';
+import { allowedOrderTransitions, canTransitionOrderStatus } from '@/lib/orderWorkflow';
 import { downloadCSV, buildCSV, exportPDF, buildHTMLTable } from '@/lib/export';
 import type { Order, Product, OrderItem } from '@/lib/supabase';
 
@@ -63,7 +66,7 @@ type OrderItemWithRelations = OrderItem & {
 
 type StatusHistoryEntry = {
   id: string;
-  from_status: string;
+  from_status: string | null;
   to_status: string;
   note: string | null;
   created_at: string;
@@ -71,6 +74,16 @@ type StatusHistoryEntry = {
 };
 
 const ORDER_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  new: { label: 'New', color: colors.warning[600], bg: colors.warning[50] },
+  under_review: { label: 'Under Review', color: colors.warning[600], bg: colors.warning[50] },
+  approved: { label: 'Approved', color: colors.primary[600], bg: colors.primary[50] },
+  preparing: { label: 'Preparing', color: colors.primary[600], bg: colors.primary[50] },
+  ready_for_delivery: { label: 'Ready for Delivery', color: colors.accent[600], bg: colors.accent[50] },
+  waiting_for_driver: { label: 'Waiting for Driver', color: colors.accent[600], bg: colors.accent[50] },
+  arrived: { label: 'Driver Arrived', color: colors.accent[600], bg: colors.accent[50] },
+  final_review: { label: 'Final Review', color: colors.warning[600], bg: colors.warning[50] },
+  delivery_failed: { label: 'Delivery Failed', color: colors.error[600], bg: colors.error[50] },
+  archived: { label: 'Archived', color: colors.neutral[500], bg: colors.neutral[100] },
   pending: { label: 'Pending', color: colors.warning[600], bg: colors.warning[50] },
   confirmed: { label: 'Confirmed', color: colors.primary[600], bg: colors.primary[50] },
   processing: { label: 'Processing', color: colors.primary[600], bg: colors.primary[50] },
@@ -84,21 +97,25 @@ const ORDER_STATUS_CONFIG: Record<string, { label: string; color: string; bg: st
 };
 
 const STATUS_OPTIONS = [
-  { value: 'pending', label: 'Pending' },
-  { value: 'confirmed', label: 'Confirmed' },
-  { value: 'processing', label: 'Processing' },
-  { value: 'shipped', label: 'Shipped' },
-  { value: 'out_for_delivery', label: 'Out for Delivery' },
-  { value: 'delivered', label: 'Delivered' },
+  { value: 'new', label: 'New' },
+  { value: 'under_review', label: 'Under Review' },
+  { value: 'approved', label: 'Approved' },
+  { value: 'preparing', label: 'Preparing' },
+  { value: 'ready_for_delivery', label: 'Ready for Delivery' },
+  { value: 'waiting_for_driver', label: 'Waiting for Driver' },
+  { value: 'arrived', label: 'Driver Arrived' },
+  { value: 'final_review', label: 'Final Review' },
   { value: 'completed', label: 'Completed' },
+  { value: 'delivery_failed', label: 'Delivery Failed' },
   { value: 'cancelled', label: 'Cancelled' },
-  { value: 'returned', label: 'Returned' },
+  { value: 'rejected', label: 'Rejected' },
+  { value: 'archived', label: 'Archived' },
 ];
 
 const MERCHANT_API_BASE = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/merchant-api`;
 
 export default function MerchantOrdersScreen() {
-  const { user, isMerchant } = useAuth();
+  const { user, isMerchant, activeCompany, hasPermission } = useAuth();
   const [orderItems, setOrderItems] = useState<OrderItemWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -123,6 +140,19 @@ export default function MerchantOrdersScreen() {
   const [selectedStatus, setSelectedStatus] = useState('');
   const [statusNote, setStatusNote] = useState('');
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [assignmentVisible, setAssignmentVisible] = useState(false);
+
+  const companyManagedTransitions = useMemo(() => {
+    const current = detailItem?.order?.status ?? '';
+    const driverOnly = new Set(['out_for_delivery', 'arrived', 'delivered', 'delivery_failed']);
+    const permissionByStatus: Record<string, string> = {
+      under_review: 'orders.review', approved: 'orders.approve', rejected: 'orders.reject', cancelled: 'orders.cancel',
+      preparing: 'orders.prepare', ready_for_delivery: 'orders.mark_ready', waiting_for_driver: 'orders.assign_driver',
+      final_review: 'orders.review', completed: 'orders.approve', archived: 'orders.archive',
+    };
+    return allowedOrderTransitions(current).filter((status) => !driverOnly.has(status) &&
+      !!activeCompany?.id && hasPermission(permissionByStatus[status] ?? 'orders.change_status', activeCompany.id));
+  }, [detailItem, activeCompany?.id, hasPermission]);
 
   const getAuthHeaders = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -138,7 +168,7 @@ export default function MerchantOrdersScreen() {
     setError(null);
     try {
       const headers = await getAuthHeaders();
-      const response = await fetch(`${MERCHANT_API_BASE}/orders`, { headers });
+      const response = await fetch(`${MERCHANT_API_BASE}/orders?company_id=${encodeURIComponent(activeCompany?.id ?? '')}`, { headers });
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
         throw new Error(err.error || `Request failed (${response.status})`);
@@ -148,7 +178,7 @@ export default function MerchantOrdersScreen() {
     } catch (e: any) {
       setError(e.message || 'Failed to load orders');
     }
-  }, [user, getAuthHeaders]);
+  }, [user, activeCompany?.id, getAuthHeaders]);
 
   useFocusEffect(
     useCallback(() => {
@@ -166,7 +196,7 @@ export default function MerchantOrdersScreen() {
     setHistoryLoading(true);
     try {
       const headers = await getAuthHeaders();
-      const response = await fetch(`${MERCHANT_API_BASE}/orders/${orderId}/history`, { headers });
+      const response = await fetch(`${MERCHANT_API_BASE}/orders/${orderId}/history?company_id=${encodeURIComponent(activeCompany?.id ?? '')}`, { headers });
       if (response.ok) {
         const data = await response.json();
         setHistory(data.history ?? []);
@@ -176,7 +206,7 @@ export default function MerchantOrdersScreen() {
     } finally {
       setHistoryLoading(false);
     }
-  }, [getAuthHeaders]);
+  }, [getAuthHeaders, activeCompany?.id]);
 
   const openDetail = useCallback((item: OrderItemWithRelations) => {
     setDetailItem(item);
@@ -187,21 +217,29 @@ export default function MerchantOrdersScreen() {
   }, [fetchHistory]);
 
   const openStatusModal = useCallback(() => {
-    const currentStatus = detailItem?.order?.status ?? 'pending';
-    setSelectedStatus(currentStatus);
+    const currentStatus = detailItem?.order?.status ?? 'new';
+    setSelectedStatus(allowedOrderTransitions(currentStatus)[0] ?? '');
     setStatusNote('');
     setStatusModalVisible(true);
   }, [detailItem]);
 
   const handleStatusUpdate = useCallback(async () => {
     if (!detailItem?.order?.id || !selectedStatus) return;
+    if (!canTransitionOrderStatus(detailItem.order.status, selectedStatus)) {
+      Alert.alert('Invalid transition', 'This order cannot move to the selected status.');
+      return;
+    }
+    if (['cancelled', 'rejected', 'delivery_failed'].includes(selectedStatus) && !statusNote.trim()) {
+      Alert.alert('Reason required', 'Enter a reason before cancelling, rejecting, or failing an order.');
+      return;
+    }
     setUpdatingStatus(true);
     try {
       const headers = await getAuthHeaders();
       const response = await fetch(`${MERCHANT_API_BASE}/orders/${detailItem.order.id}/status`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ status: selectedStatus, note: statusNote.trim() || null }),
+        body: JSON.stringify({ status: selectedStatus, note: statusNote.trim() || null, company_id: activeCompany?.id }),
       });
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
@@ -225,7 +263,7 @@ export default function MerchantOrdersScreen() {
     } finally {
       setUpdatingStatus(false);
     }
-  }, [detailItem, selectedStatus, statusNote, getAuthHeaders, load, fetchHistory]);
+  }, [detailItem, selectedStatus, statusNote, getAuthHeaders, load, fetchHistory, activeCompany?.id]);
 
   const activeFilterCount = [
     statusFilter !== 'all',
@@ -549,6 +587,8 @@ export default function MerchantOrdersScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      <View style={{ paddingHorizontal: spacing.md }}><CompanyPicker /></View>
 
       {error ? (
         <View style={styles.errorBanner}>
@@ -892,7 +932,7 @@ export default function MerchantOrdersScreen() {
                         <View style={styles.historyDot} />
                         <View style={{ flex: 1 }}>
                           <Text style={styles.historyText}>
-                            {(ORDER_STATUS_CONFIG[h.from_status]?.label ?? h.from_status)} →{' '}
+                            {(h.from_status ? ORDER_STATUS_CONFIG[h.from_status]?.label ?? h.from_status : '—')} →{' '}
                             {(ORDER_STATUS_CONFIG[h.to_status]?.label ?? h.to_status)}
                           </Text>
                           <Text style={styles.historyMeta}>
@@ -907,19 +947,25 @@ export default function MerchantOrdersScreen() {
                   )}
                 </View>
 
-                {/* Update status button */}
-                <View style={{ marginTop: spacing.md, marginBottom: spacing.xl }}>
-                  <Button
-                    title="Update Order Status"
-                    onPress={openStatusModal}
-                    fullWidth
-                  />
+                {/* Company-scoped order actions */}
+                <View style={{ marginTop: spacing.md, marginBottom: spacing.xl, gap: spacing.sm }}>
+                  {companyManagedTransitions.length ? <Button title="Update Order Status" onPress={openStatusModal} fullWidth /> : null}
+                  {detailItem.order?.status === 'waiting_for_driver' && activeCompany?.id && hasPermission('drivers.assign_orders', activeCompany.id)
+                    ? <Button title="Assign Driver" onPress={() => setAssignmentVisible(true)} variant="outline" fullWidth /> : null}
                 </View>
               </ScrollView>
             ) : null}
           </View>
         </View>
       </Modal>
+
+      {detailItem?.order?.id && activeCompany?.id ? <DriverAssignmentModal
+        visible={assignmentVisible}
+        orderId={detailItem.order.id}
+        companyId={activeCompany.id}
+        onClose={() => setAssignmentVisible(false)}
+        onAssigned={() => { load(); if (detailItem.order?.id) fetchHistory(detailItem.order.id); }}
+      /> : null}
 
       {/* ── Status Update Modal ─────────────────────────────────── */}
       <Modal
@@ -946,7 +992,7 @@ export default function MerchantOrdersScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.statusChipRow}
             >
-              {STATUS_OPTIONS.map((opt) => (
+              {STATUS_OPTIONS.filter((opt) => companyManagedTransitions.includes(opt.value as never)).map((opt) => (
                 <TouchableOpacity
                   key={opt.value}
                   style={[

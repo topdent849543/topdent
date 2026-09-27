@@ -426,7 +426,7 @@ export default function PublisherLinksScreen() {
                 <Package size={48} color={colors.neutral[300]} />
                 <Text style={styles.emptyTitle}>No products available</Text>
                 <Text style={styles.emptyMsg}>
-                  You've already created affiliate links for all available products.
+                  You&apos;ve already created affiliate links for all available products.
                 </Text>
               </View>
             ) : (
